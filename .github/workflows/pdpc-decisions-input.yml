@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: '49 14 * * 2,4,6' # 10.49PM GMT+8 every Tues, Thurs, and Sat
 
+permissions:
+  contents: write
+
 jobs:
   pdpc-decisions:
     runs-on: ubuntu-latest
@@ -13,7 +16,7 @@ jobs:
       uses: actions/checkout@v6.0.2
       with:
         fetch-depth: 0
-        token: ${{ secrets.PAT }}
+        # token: ${{ secrets.PAT }}
     - uses: cachix/install-nix-action@v31
     - uses: cachix/cachix-action@v16
       with:
