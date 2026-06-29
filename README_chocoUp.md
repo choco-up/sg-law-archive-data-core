@@ -47,15 +47,19 @@ http://localhost:8001
 
 ## Workflow
 
+- Note that all `devenv shell` commands are defined in `devenv.nix`.
+
 ### Data Collection
 
-example: `.github/workflows/hearings-input.yml` runs:
+Example - Github action `Obtain latest hearings data`:
+
+First, `.github/workflows/hearings-input.yml` runs:
 
 ```sh
 devenv shell fetch-hearings
 ```
 
-That calls the matching script in `input/`, for example:
+That calls the matching script in `input/`:
 
 ```
 input/hearings/get_hearings.bb
