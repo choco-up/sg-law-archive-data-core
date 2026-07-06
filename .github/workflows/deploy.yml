@@ -6,34 +6,63 @@ on:
     branches:
       - main
     paths:
-      - 'docker/**'
-      - 'data/**'
+      - "docker/**"
+      - "data/**"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: main
     steps:
-      - name: Tailscale
-        uses: tailscale/github-action@v4
+      - name: Check out this repo
+        uses: actions/checkout@v6.0.2
         with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:github-actions
+          fetch-depth: 0
+
       - uses: cachix/install-nix-action@v31
+
       - uses: cachix/cachix-action@v16
         with:
           name: devenv
+
       - name: Install devenv.sh
         run: nix profile install nixpkgs#devenv
-      - name: rebuild and deploy
-        uses: appleboy/ssh-action@v1
+
+      - name: Build Datasette database
+        run: devenv shell build-db
+
+      - name: Build frontend assets
+        run: devenv shell build-frontend
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.TAILSCALE_DEPLOY_TARGET }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.PRIVATE_KEY }}
-          script: |
-            cd ${{ secrets.DEPLOY_DIRECTORY }} && \
-            git pull --rebase && \
-            devenv shell build-db && \
-            devenv shell build-frontend && \
-            devenv shell prod-datasette
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          mask-password: true
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build \
+            -f docker/prod.Dockerfile \
+            -t $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG \
+            -t $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest \
+            .
+          docker push $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG
+          docker push $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest
+          echo "image=$ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
