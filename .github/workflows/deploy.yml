@@ -15,6 +15,15 @@ permissions:
 
 env:
   IMAGE_TAG: ${{ github.sha }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+  ECS_SERVICE: ${{ vars.ECS_SERVICE }}
+  ECS_TASK_DEFINITION: ${{ vars.ECS_TASK_DEFINITION }}
+  ECS_TASK_CPU: ${{ vars.ECS_TASK_CPU }}
+  ECS_TASK_MEMORY: ${{ vars.ECS_TASK_MEMORY }}
+  ECS_CONTAINER_NAME: ${{ vars.ECS_CONTAINER_NAME }}
 
 jobs:
   deploy:
@@ -44,14 +53,12 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-        with:
-          mask-password: true
 
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
@@ -60,9 +67,55 @@ jobs:
         run: |
           docker build \
             -f docker/prod.Dockerfile \
-            -t $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG \
-            -t $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
             .
-          docker push $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG
-          docker push $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest
-          echo "image=$ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "$ECS_TASK_DEFINITION" \
+            --query taskDefinition \
+            --region "$AWS_REGION" > task-definition.json
+
+      - name: Prepare task definition for the new image
+        run: |
+          jq \
+            --arg container "$ECS_CONTAINER_NAME" \
+            --arg cpu "$ECS_TASK_CPU" \
+            --arg memory "$ECS_TASK_MEMORY" \
+            'del(
+              .taskDefinitionArn,
+              .revision,
+              .status,
+              .requiresAttributes,
+              .compatibilities,
+              .registeredAt,
+              .registeredBy
+            )
+            | del(.containerDefinitions[] | select(.name == $container) | .command)
+            | (.containerDefinitions[] | select(.name == $container) | .environment) = []
+            | (.containerDefinitions[] | select(.name == $container) | .secrets) = []
+            | if $cpu != "" then .cpu = $cpu else . end
+            | if $memory != "" then .memory = $memory else . end' \
+            task-definition.json > task-definition.clean.json
+          mv task-definition.clean.json task-definition.json
+
+      - name: Render task definition
+        id: render-task-definition
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.ECS_CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy ECS service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
