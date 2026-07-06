@@ -2,6 +2,11 @@ name: Deploy Datasette
 
 on:
   workflow_dispatch:
+    inputs:
+      skip_build_db:
+        description: Fast ECS deploy test (skip build-db and devenv)
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -33,22 +38,34 @@ jobs:
       - name: Check out this repo
         uses: actions/checkout@v6.0.2
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_build_db && 1 || 0 }}
 
       - uses: cachix/install-nix-action@v31
+        if: github.event_name != 'workflow_dispatch' || inputs.skip_build_db != true
 
       - uses: cachix/cachix-action@v16
+        if: github.event_name != 'workflow_dispatch' || inputs.skip_build_db != true
         with:
           name: devenv
 
       - name: Install devenv.sh
+        if: github.event_name != 'workflow_dispatch' || inputs.skip_build_db != true
         run: nix profile install nixpkgs#devenv
 
       - name: Build Datasette database
+        if: github.event_name != 'workflow_dispatch' || inputs.skip_build_db != true
         run: devenv shell build-db
 
       - name: Build frontend assets
+        if: github.event_name != 'workflow_dispatch' || inputs.skip_build_db != true
         run: devenv shell build-frontend
+
+      - name: Prepare minimal assets for ECS deploy test
+        if: github.event_name == 'workflow_dispatch' && inputs.skip_build_db
+        run: |
+          mkdir -p data app/dist app/html-templates
+          sqlite3 data/data.db "CREATE TABLE IF NOT EXISTS _ecs_deploy_test (id INTEGER);"
+          touch app/dist/main.css
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
