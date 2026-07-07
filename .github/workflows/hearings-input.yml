@@ -2,6 +2,11 @@ name: Obtain latest hearings data
 
 on:
   workflow_dispatch:
+    inputs:
+      skip_fetch:
+        description: Skip fetching latest data (test deploy only)
+        type: boolean
+        default: false
   schedule:
     - cron: "09 00,12 * * *" # 8.09AM and 8.09 PM GMT+8
 
@@ -27,6 +32,7 @@ jobs:
         run: nix profile install nixpkgs#devenv
 
       - name: Fetch latest data
+        if: github.event_name != 'workflow_dispatch' || inputs.skip_fetch != true
         run: devenv shell fetch-hearings
 
       - name: Commit and push if it changed

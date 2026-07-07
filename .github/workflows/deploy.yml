@@ -7,12 +7,10 @@ on:
         description: Fast ECS deploy test (skip build-db and devenv)
         type: boolean
         default: false
-  push:
-    branches:
-      - main
-    paths:
-      - "docker/**"
-      - "data/**"
+  workflow_run:
+    workflows: ["Obtain latest hearings data"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
