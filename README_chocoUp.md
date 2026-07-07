@@ -45,6 +45,12 @@ Then open:
 http://localhost:8001
 ```
 
+Normally, we use this for health check:
+
+```
+http://localhost:8001/-/versions.json
+```
+
 ## Workflow
 
 - Note that all `devenv shell` commands are defined in `devenv.nix`.
