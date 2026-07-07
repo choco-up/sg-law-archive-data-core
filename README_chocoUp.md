@@ -27,7 +27,7 @@ Then from the project root:
 devenv shell
 ```
 
-After that, you can run:
+Assume you have already had data in the `/data` folder. To build a local DB, you can run:
 
 ```sh
 devenv shell build-db
@@ -92,4 +92,4 @@ That commits and pushes any changed `data/` files back into the repo.
 It runs when:
 
 - manually triggered with `workflow_dispatch`
-- pushed to main with changes under `docker/**` or `data/**` (i.e. new data is obtained)
+- `Obtain latest hearings data` workflow is completed.
