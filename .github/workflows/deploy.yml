@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       skip_build_db:
-        description: Fast ECS deploy test (skip build-db and devenv)
+        description: Fast ECS deploy test (reuse latest ECR image, skip build)
         type: boolean
         default: false
   workflow_run:
@@ -34,9 +34,10 @@ jobs:
     environment: main
     steps:
       - name: Check out this repo
+        if: github.event_name != 'workflow_dispatch' || inputs.skip_build_db != true
         uses: actions/checkout@v6.0.2
         with:
-          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_build_db && 1 || 0 }}
+          fetch-depth: 0
 
       - uses: cachix/install-nix-action@v31
         if: github.event_name != 'workflow_dispatch' || inputs.skip_build_db != true
@@ -58,13 +59,6 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || inputs.skip_build_db != true
         run: devenv shell build-frontend
 
-      - name: Prepare minimal assets for ECS deploy test
-        if: github.event_name == 'workflow_dispatch' && inputs.skip_build_db
-        run: |
-          mkdir -p data app/dist app/html-templates
-          sqlite3 data/data.db "CREATE TABLE IF NOT EXISTS _ecs_deploy_test (id INTEGER);"
-          touch app/dist/main.css
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -77,6 +71,7 @@ jobs:
 
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
+        if: github.event_name != 'workflow_dispatch' || inputs.skip_build_db != true
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
@@ -88,6 +83,18 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Use latest ECR image
+        id: use-latest-ecr-image
+        if: github.event_name == 'workflow_dispatch' && inputs.skip_build_db
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag=latest \
+            --region "$AWS_REGION"
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:latest" >> $GITHUB_OUTPUT
 
       - name: Download current task definition
         run: |
@@ -125,7 +132,7 @@ jobs:
         with:
           task-definition: task-definition.json
           container-name: ${{ env.ECS_CONTAINER_NAME }}
-          image: ${{ steps.build-image.outputs.image }}
+          image: ${{ steps.build-image.outputs.image || steps.use-latest-ecr-image.outputs.image }}
 
       - name: Deploy ECS service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
