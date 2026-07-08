@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       skip_build_db:
-        description: Fast ECS deploy test (reuse latest ECR image, skip build)
+        description: Fast ECS deploy test (reuse :latest ECR image, skip build data.db)
         type: boolean
         default: false
   workflow_run:
@@ -89,12 +89,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.skip_build_db
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        run: |
-          aws ecr describe-images \
-            --repository-name "$ECR_REPOSITORY" \
-            --image-ids imageTag=latest \
-            --region "$AWS_REGION"
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:latest" >> $GITHUB_OUTPUT
+        run: echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:latest" >> $GITHUB_OUTPUT
 
       - name: Download current task definition
         run: |
