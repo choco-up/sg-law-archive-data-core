@@ -52,7 +52,8 @@
 (defn -main []
   (utils/try-ignore-errors
    (generate-db "hearings" HEARINGS_JSON
-                :id "link")
+                :id "link"
+                :convert "[v for v in {item[\"link\"]: item for item in json.loads(content) if item.get(\"link\")}.values()]")
    (generate-db "sc" SC_JSON
                 :id "name")
    (generate-db "pdpc_undertakings" PDPC_UNDERTAKINGS_JSON

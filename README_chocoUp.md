@@ -27,7 +27,7 @@ Then from the project root:
 devenv shell
 ```
 
-Assume you have already had data in the `/data` folder. To build a local DB, you can run:
+To build a local DB from the data in the `/data` folder, you can run:
 
 ```sh
 devenv shell build-db
