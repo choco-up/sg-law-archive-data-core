@@ -24,6 +24,10 @@
             " " DB_FILE
             " " input-file
             " --namespace " "'" namespace "'"
+            (use-optional-argument
+             (when-let [branch (System/getenv "GITHUB_REF_NAME")]
+               (when (not= branch "main") branch))
+             "--branch")
             (use-optional-argument start-at "--start-at")
             (use-optional-argument convert "--convert")
             (use-optional-argument ignore "--ignore")
