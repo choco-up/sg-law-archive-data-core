@@ -1,4 +1,4 @@
-name: Deploy Datasette
+name: Deploy Datasette (Prd)
 
 on:
   workflow_dispatch:
@@ -22,8 +22,22 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: main
+    environment: ${{ github.ref_name }}
     steps:
+      - name: Log deploy environment variables
+        run: |
+          echo "GitHub environment: ${{ github.ref_name }}"
+          echo "IMAGE_TAG: $IMAGE_TAG"
+          echo "AWS_REGION: ${{ vars.AWS_REGION }}"
+          echo "AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}"
+          echo "ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}"
+          echo "ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}"
+          echo "ECS_SERVICE: ${{ vars.ECS_SERVICE }}"
+          echo "ECS_TASK_DEFINITION: ${{ vars.ECS_TASK_DEFINITION }}"
+          echo "ECS_TASK_CPU: ${{ vars.ECS_TASK_CPU }}"
+          echo "ECS_TASK_MEMORY: ${{ vars.ECS_TASK_MEMORY }}"
+          echo "ECS_CONTAINER_NAME: ${{ vars.ECS_CONTAINER_NAME }}"
+
       - name: Check out this repo
         if: github.event_name != 'workflow_dispatch' || inputs.skip_build_db != true
         uses: actions/checkout@v6.0.2

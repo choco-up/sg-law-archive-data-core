@@ -51,45 +51,22 @@ Normally, we use this for health check:
 http://localhost:8001/-/versions.json
 ```
 
-## Workflow
+## GitHub Workflow
 
 - Note that all `devenv shell` commands are defined in `devenv.nix`.
 
-### Data Collection
+All data collection workflows, such as `Obtain latest hearings data` and `Obtain latest fc-judgments data`, will run regularly on `main` branch.
 
-Example - Github action `Obtain latest hearings data`:
+They collect data, write it into json file in `/data` folder, and push it to `main` branch.
 
-First, `.github/workflows/hearings-input.yml` runs:
-
-```sh
-devenv shell fetch-hearings
-```
-
-That calls the matching script in `input/`:
+After `Obtain latest hearings data` workflow is completed, the action of production deployment will run automatically:
 
 ```
-input/hearings/get_hearings.bb
+.github/workflows/deploy-prd.yml
 ```
 
-The script fetches public data and writes it into:
+If you want to test dev environment, you need to run the action of dev deployment manually:
 
 ```
-data/hearings.json
+.github/workflows/deploy-dev.yml
 ```
-
-Then the workflow runs:
-
-```sh
-devenv shell automated-git-push hearings
-```
-
-That commits and pushes any changed `data/` files back into the repo.
-
-### Deployment
-
-`.github/workflows/deploy.yml` deploys the site.
-
-It runs when:
-
-- manually triggered with `workflow_dispatch`
-- `Obtain latest hearings data` workflow is completed.
